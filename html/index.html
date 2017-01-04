@@ -1,0 +1,293 @@
+<html>
+<head>
+<title>Computer Vision Project</title>
+<link href='http://fonts.googleapis.com/css?family=Nunito:300|Crimson+Text|Droid+Sans+Mono' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" title="Default" href="styles/github.css">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js"></script>  
+
+<link rel="stylesheet" href="highlighting/styles/default.css">
+<script src="highlighting/highlight.pack.js"></script>
+
+<style type="text/css">
+body {
+	margin: 0px;
+	width: 100%;
+	font-family: 'Crimson Text', serif;
+	font-size: 20px;
+	background: #fcfcfc;
+}
+h1 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 28px;
+	margin: 25px 0px 0px 0px;
+	text-transform: lowercase;
+
+}
+
+h2 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 32px;
+	margin: 15px 0px 35px 0px;
+	color: #333;	
+	word-spacing: 3px;
+}
+
+h3 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 26px;
+	margin: 10px 0px 10px 0px;
+	color: #333;
+	word-spacing: 2px;
+}
+h4 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 22px;
+	margin: 10px 0px 10px 0px;
+	color: #333;
+	word-spacing: 2px;
+}
+
+h5 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 18px;
+	margin: 10px 0px 10px 0px;
+	color: #111;
+	word-spacing: 2px;
+}
+
+p, li {
+	color: #444;
+}
+
+a {
+	color: #DE3737;
+}
+
+.container {
+	margin: 0px auto 0px auto;
+	width: 960px;
+}
+
+#header {
+	background: #333;
+	width: 100%;
+}
+
+#headersub {
+	color: #ccc;
+	width: 960px;
+	margin: 0px auto 0px auto;
+	padding: 20px 0px 20px 0px;
+}
+
+.chart {
+	width: 480px;
+}
+.lol {
+	font-size: 16px;
+	color: #888;
+	font-style: italic;
+}
+.sep {
+	height: 1px;
+	width: 100%;
+	background: #999;
+	margin: 20px 0px 20px 0px;
+}
+.footer{
+	font-size: 16px;
+}
+.latex {
+	width: 100%;
+}
+
+.latex img {
+	display: block;
+	margin: 0px auto 0px auto;
+}
+
+pre {
+	font-family: 'Droid Sans Mono';
+	font-size: 14px;
+}
+
+td img {
+  vertical-align: middle;
+}
+
+#contents a {
+}
+</style>
+<script type="text/javascript">
+    hljs.initHighlightingOnLoad();
+</script>
+</head>
+<body>
+<div id="header" >
+<div id="headersub">
+<h1><span style="color: #DE3737">Conner Kobus</span></h1>
+</div>
+</div>
+<div class="container">
+
+<h2>Project 3: Camera Calibration and Fundamental Matrix Estimation with RANSAC</h2>
+
+<!-- <div style="float: right; padding: 20px">
+<img src="placeholder.jpg" />
+<p style="font-size: 14px">Example of a right floating element.</p>
+</div> -->
+
+
+<!-- <ol>
+<li>list element 1.</li>
+<li>list element 2.</li>
+<li>etc.</li>
+</ol> -->
+
+
+<div style="clear:both">
+
+<h3>Overview</h3>
+	<p>
+		The goal of this project was to gain experience mapping 3D world coordinates to image coordinates. I calculate the projection matrix and estimate the fundamental matrix for a real image pair and use it to reject keypoint matches that were not on corresponding epipolar lines, in order to leave only the more accurate matches.
+		This project can be broken down into 3 main parts:
+		(1) estimating the projection matrix, 
+		(2) estimating the fundamental matrix, 
+		and (3) estimating the fundamental matrix with unreliable SIFT matches using RANSAC
+	<p/>
+
+<h3>Estimating the Projection Matrix</h3>
+	<p>	
+		In order to estimate the projection matrix, I first set up a system of equations using the corresponding 2D image points and 3D world points. I then solved this system of equations using Matlab's svd() function and reshaped the resulting matrix into a 3X3 matrix. Lastly, I wrote a small piece of code to compute the camera center from a given projection matrix. Using both of these together successfully maps the world and image coordinates together as seen in the images below.
+	</p>
+
+	<pre> Calculating Projection Matrix<code>
+		n = size(Points_2D,1);
+		u = Points_2D(:,1);
+		v = Points_2D(:,2);
+		X = Points_3D(:,1);
+		Y = Points_3D(:,2);
+		Z = Points_3D(:,3);
+		A=[];
+
+		for i = 1:n
+		    r1=[X(i) Y(i) Z(i) 1 0 0 0 0 -u(i)*X(i) -u(i)*Y(i) -u(i)*Z(i) -u(i)];
+		    r2=[0 0 0 0 X(i) Y(i) Z(i) 1 -v(i)*X(i) -v(i)*Y(i) -v(i)*Z(i) -v(i)];
+		    A = [A; r1; r2];
+		end
+
+		[U,S,V] = svd(A);
+		M = V(:,end);
+		M = reshape(M,[],3)';
+	</code></pre>
+
+	<center>
+		<img src="Images/pt1b.png" width="45%"> <img src="Images/pt1a.png" width = "45%">
+	</center>
+
+
+<h3>Estimating the Fundamental Matrix</h3>
+	<p>	
+		Next, I work on estimating the 3x3 fundamental matrix given 2D coordinate points from two images. I do this by using the 8-point algorithm. I first setup my system of equations. Next, I find the least squares solution on 8 pairs of correspondences using SVD. Then I make sure that the constraint of det(F)=0 is satisfied by using SVD on F. Using this fundamental matrix I just created, I can draw the epipolar lines on an image, such as seen below. As you can see, these lines intersect nearly perfectly with the ground truths.
+	</p>
+	<pre>Estimating Fundamental Matrix<code>
+		A = [];
+		n = size(Points_a,1);
+		ua = Points_a(:,1);
+		va = Points_a(:,2);
+		ub = Points_b(:,1);
+		vb = Points_b(:,2);
+
+		for i = 1:n
+		    r1 = [ ua(i)*ub(i) ua(i)*vb(i) ua(i) va(i)*ub(i) va(i)*vb(i) va(i) ub(i) vb(i) 1];
+		    A = [A; r1];
+		end
+
+		[U,S,V] = svd(A);
+		f = V(:,end);
+		F = reshape(f, [3 3]);
+
+		[U,S,V] = svd(F);
+		S(3,3) = 0;
+		F_matrix = U*S*V';
+	</code></pre>
+
+	<center>
+		<img src="Images/pt2b.png" width="45%"> <img src="Images/pt2a.png" width = "45%">
+	</center>
+
+<h3>Estimating the Fundamental Matrix using RANSAC</h3>
+
+	<p> 	
+		For the third part of the project, I estimate the fundamental matrix with unreliable SIFT matches by using RANSAC. In order to do this I randomly choose sample points with which to calculate the fundamental matrix. I then determine how many of all the points are inliers when using this fundamental matrix. I iterate through this process many times in order to find the fundamental matrix with the most inliers. As you can see in the images below, this method is quite effective and does well at selecting only accurate matches on all the image pairs below.
+	</p>
+	<pre>Estimating Fundamental Matrix<code>
+			n = size(matches_a, 1);
+			threshold = .003;
+			bestMatrix = [];
+			bestInliers_a = [];
+			bestInliers_b = [];
+			highestInliers = 0;
+			for i = 1:2000
+			    samples = randsample(n,9);
+			    samplesA = matches_a(samples,:);
+			    samplesB = matches_b(samples,:);
+			    F_matrix = estimate_fundamental_matrix(samplesA, samplesB);
+			    numInliers = 0;
+			    inliers_a = [];
+			    inliers_b = [];
+			    for j = 1:n
+			        dist = [matches_b(j,:) 1]*F_matrix*[matches_a(j,:) 1]'; %should be close to 0 for samples
+			        if abs(dist) < threshold
+			            numInliers = numInliers + 1;
+			            inliers_a = [inliers_a ;matches_a(j,:)];
+			            inliers_b = [inliers_b ;matches_b(j,:)];
+			        end
+			    end
+			    if numInliers > highestInliers
+			        bestMatrix = F_matrix;
+			        bestInliers_a = inliers_a;
+			        bestInliers_b = inliers_b;
+			        highestInliers = numInliers;
+			    end
+			end
+			Best_Fmatrix = bestMatrix;
+			inliers_a = bestInliers_a;
+			inliers_b = bestInliers_b;
+		</code></pre>
+
+		<center>
+			<img src="Images/pt3b.png" width="45%"> <img src="Images/pt3a.png" width = "45%">
+		</center>
+		<center>
+			<img src="Images/pt3d.png" width="45%"> <img src="Images/pt3c.png" width = "45%">
+		</center>
+
+		<center>
+			<img src="Images/pt3b2.png" width="45%"> <img src="Images/pt3a2.png" width = "45%">
+		</center>
+		<center>
+			<img src="Images/pt3d2.png" width="45%"> <img src="Images/pt3c2.png" width = "45%">
+		</center>
+
+		<center>
+			<img src="Images/pt3b3.png" width="45%"> <img src="Images/pt3a3.png" width = "45%">
+		</center>
+		<center>
+			<img src="Images/pt3c3.png" width="45%"> <img src="Images/pt3d3.png" width = "45%">
+		</center>
+
+	<p>	
+		As you can see in all of these images, the large number of potential matches on the left is reduced to the much smaller number of accurate matches on the right, because these pairs of points fall on corresponding epipolar lines in the two images.
+	</p>
+
+
+
+
+</body>
+</html>
